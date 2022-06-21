@@ -1,3 +1,18 @@
 {
-  "cSpell.words": ["colorbar", "freqs", "magphase", "melspectrogram", "sgram", "specshow", "stft"]
+  "cSpell.words": [
+    "colorbar",
+    "fmax",
+    "fmin",
+    "freqs",
+    "linewidth",
+    "magphase",
+    "mels",
+    "melspectrogram",
+    "probs",
+    "pyin",
+    "rowspan",
+    "sgram",
+    "specshow",
+    "stft"
+  ]
 }
