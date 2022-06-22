@@ -40,7 +40,9 @@ def gen_plotly_plots(audio_file: Path) -> None:
 
     # Add waveform plot
     fig.add_trace(
-        go.Scatter(x=np.linspace(0, duration, len(samples)), y=samples, name="Waveform"),
+        go.Scatter(
+            x=np.linspace(0, duration, len(samples)), y=samples, name="Waveform"
+        ),
         row=1,
         col=1,
     )
@@ -57,6 +59,12 @@ def gen_plotly_plots(audio_file: Path) -> None:
         row=2,
         col=1,
     )
+
+    # Add axis labels
+    fig.update_xaxes(title_text="Time (s)", row=1, col=1)
+    fig.update_yaxes(title_text="Amplitude", row=1, col=1)
+    fig.update_xaxes(title_text="Time (s)", row=2, col=1)
+    fig.update_yaxes(title_text="Mel-Frequency (Hz)", row=2, col=1)
 
     fig.update_layout(title_text=audio_file.name)
     fig.show()
@@ -144,7 +152,7 @@ def main():
 
     plt.colorbar(img, format="%+2.0f dB", ax=ax[:])  # type: ignore
     plt.xticks(np.arange(0, duration + 0.1, 0.1))
-    plt.show()
+    # plt.show()
 
     print(f"duration: {librosa.get_duration(y=samples, sr=sample_rate):.04f} seconds")
     print(f"Sample Rate: {sample_rate} Hz")
