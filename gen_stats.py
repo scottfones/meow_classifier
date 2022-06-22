@@ -24,7 +24,7 @@ def gen_plotly_plots(audio_file: Path) -> None:
 
     # Generate Spectrograms
     mel_spec = librosa.feature.melspectrogram(
-        y=samples, sr=sample_rate, n_mels=64, n_fft=1024, fmin=f_min, fmax=f_max
+        y=samples, sr=sample_rate, n_mels=256, n_fft=2048, fmin=f_min, fmax=f_max
     )
     mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)  # type: ignore
 
@@ -61,9 +61,9 @@ def gen_plotly_plots(audio_file: Path) -> None:
     )
 
     # Add axis labels
-    fig.update_xaxes(title_text="Time (s)", row=1, col=1)
+    fig.update_xaxes(title_text="Time (seconds)", row=1, col=1)
     fig.update_yaxes(title_text="Amplitude", row=1, col=1)
-    fig.update_xaxes(title_text="Time (s)", row=2, col=1)
+    fig.update_xaxes(title_text="Time (seconds)", row=2, col=1)
     fig.update_yaxes(title_text="Mel-Frequency (Hz)", row=2, col=1)
 
     fig.update_layout(title_text=audio_file.name)
@@ -79,7 +79,9 @@ def get_stats(samples: np.ndarray, sample_rate: int) -> float:
     # fundamental frequency
     f0, voiced_flag, voiced_probs = librosa.pyin(samples, fmin=400, fmax=8096)
 
-    # mean fundamental frequency
+    # fundamental frequency stats
+    max_f0 = np.max(f0[np.isfinite(f0)])
+    min_f0 = np.min(f0[np.isfinite(f0)])
     mu_f0 = np.mean(f0[np.isfinite(f0)])
 
     return -1
@@ -132,7 +134,7 @@ def main():
         ax[0].vlines(x=onset, ymin=-0.25, ymax=0.25, color="red")  # type: ignore
 
     mel_spec = librosa.feature.melspectrogram(
-        y=samples, sr=sample_rate, n_mels=64, n_fft=1024, fmin=f_min, fmax=f_max
+        y=samples, sr=sample_rate, n_mels=256, n_fft=2048, fmin=f_min, fmax=f_max
     )
     mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)  # type: ignore
     img = librosa.display.specshow(
@@ -151,12 +153,15 @@ def main():
     ax[2].plot(times2, cent.T, color="green", linewidth=2)  # type: ignore
 
     plt.colorbar(img, format="%+2.0f dB", ax=ax[:])  # type: ignore
-    plt.xticks(np.arange(0, duration + 0.1, 0.1))
-    # plt.show()
+    plt.xticks(np.linspace(0, duration, mel_spec_db.shape[1]))
+    plt.show()
 
     print(f"duration: {librosa.get_duration(y=samples, sr=sample_rate):.04f} seconds")
     print(f"Sample Rate: {sample_rate} Hz")
     print(f"Spec Shape: {mel_spec_db.shape}")
+    print(f"f0: {f0}")
+    print(f"voiced_flag: {voiced_flag}")
+    print(f"voiced_probs: {voiced_probs}")
 
     # load_files()
 
