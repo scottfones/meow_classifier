@@ -5,7 +5,7 @@ from pathlib import Path
 
 import librosa
 import librosa.display
-import matplotlib.pyplot as plt
+import noisereduce as nr
 import numpy as np
 import plotly.graph_objects as go
 from librosa import get_duration, load
@@ -15,6 +15,7 @@ from plotly.subplots import make_subplots
 def gen_plotly_plots(audio_file: Path) -> None:
     """Generate plotly plots for audio file's waveform and mel-spectrogram."""
     samples, sample_rate = librosa.load(audio_file)
+    # samples = nr.reduce_noise(y=samples, sr=sample_rate)
 
     # Basic stats
     duration = librosa.get_duration(y=samples, sr=sample_rate)
@@ -69,7 +70,7 @@ def gen_plotly_plots(audio_file: Path) -> None:
     mag_spec, _ = librosa.magphase(librosa.stft(y=samples))
     spec_centroid = librosa.feature.spectral_centroid(S=mag_spec)
     spec_centroid_times = librosa.times_like(spec_centroid)
-    percentile_thresh = np.percentile(mel_spec_db, 80)
+    percentile_thresh = np.percentile(mel_spec_db, 95)
     percentile_times = spec_centroid_times[
         np.max(mel_spec_db, axis=0) >= percentile_thresh
     ]
@@ -80,6 +81,8 @@ def gen_plotly_plots(audio_file: Path) -> None:
         go.Scatter(
             x=percentile_times,
             y=percentile_centroid.T[0],
+            line=dict(color='cyan', width=3),
+            mode='lines+markers',
             name="Centroid",
         ),
         row=2,
