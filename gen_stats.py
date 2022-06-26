@@ -2,7 +2,6 @@
 
 import sys
 from pathlib import Path
-from unicodedata import name
 
 import librosa
 import librosa.display
@@ -32,16 +31,22 @@ def gen_plotly_plots(audio_file: Path) -> None:
 
     # Define subplots
     fig = make_subplots(
-        rows=4,
+        rows=3,
         cols=1,
-        specs=[[{}], [{"rowspan": 3}], [None], [None]],
+        specs=[
+            [{}],
+            [{"rowspan": 2}],
+            [None],
+        ],
         subplot_titles=("Waveform", "Mel-Spectrogram"),
     )
 
     # Add waveform plot
     fig.add_trace(
         go.Scatter(
-            x=np.linspace(0, duration, len(samples)), y=samples, name="Waveform"
+            x=np.linspace(0, duration, len(samples)),
+            y=samples,
+            name="Waveform",
         ),
         row=1,
         col=1,
@@ -60,29 +65,73 @@ def gen_plotly_plots(audio_file: Path) -> None:
         col=1,
     )
 
+    # Add percentile centroid plot
+    mag_spec, _ = librosa.magphase(librosa.stft(y=samples))
+    spec_centroid = librosa.feature.spectral_centroid(S=mag_spec)
+    spec_centroid_times = librosa.times_like(spec_centroid)
+    percentile_thresh = np.percentile(mel_spec_db, 80)
+    percentile_times = spec_centroid_times[
+        np.max(mel_spec_db, axis=0) >= percentile_thresh
+    ]
+    percentile_centroid = spec_centroid.T[
+        np.max(mel_spec_db, axis=0) >= percentile_thresh
+    ]
+    fig.add_trace(
+        go.Scatter(
+            x=percentile_times,
+            y=percentile_centroid.T[0],
+            name="Centroid",
+        ),
+        row=2,
+        col=1,
+    )
+
     # Add axis labels
     fig.update_xaxes(title_text="Time (seconds)", row=1, col=1)
     fig.update_yaxes(title_text="Amplitude", row=1, col=1)
     fig.update_xaxes(title_text="Time (seconds)", row=2, col=1)
     fig.update_yaxes(title_text="Mel-Frequency (Hz)", row=2, col=1)
 
-    fig.update_layout(title_text=audio_file.name)
+    fig.update_layout(
+        title_text=audio_file.name,
+        showlegend=False,
+    )
     fig.show()
 
 
 def get_stats(samples: np.ndarray, sample_rate: int) -> float:
-    """Scratch pad for potential feature extraction."""
-    max_energy = np.max(librosa.feature.rms(y=samples))
+    """Potential features for extraction."""
+    # Define min and max frequencies
+    f_min = librosa.note_to_hz("A1")
+    f_max = librosa.note_to_hz("B7")
 
-    total_duration = librosa.get_duration(y=samples, sr=sample_rate)
+    # Generate spec
+    mel_spec = librosa.feature.melspectrogram(
+        y=samples, sr=sample_rate, n_mels=256, n_fft=2048, fmin=f_min, fmax=f_max
+    )
+    mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)  # type: ignore
+    mel_spec_m, mel_spec_n = mel_spec_db.shape
+
+    # RMS stats
+    rms = librosa.feature.rms(y=samples)
+    rms_max = np.max(rms)
+    rms_mean = np.mean(rms)
+    rms_sum = np.sum(rms)
+
+    # Duration stats
+    sample_count = len(samples)
+    samples_top_twenty_db = np.sum(mel_spec_db >= -20)
+    samples_top_forty_db = np.sum(mel_spec_db >= -40)
+    samples_top_sixty_db = np.sum(mel_spec_db >= -60)
+    samples_top_eighty_db = np.sum(mel_spec_db >= -80)
 
     # fundamental frequency
-    f0, voiced_flag, voiced_probs = librosa.pyin(samples, fmin=400, fmax=8096)
+    f0, voiced_flag, voiced_probs = librosa.pyin(samples, fmin=f_min, fmax=f_max)
 
     # fundamental frequency stats
-    max_f0 = np.max(f0[np.isfinite(f0)])
-    min_f0 = np.min(f0[np.isfinite(f0)])
-    mu_f0 = np.mean(f0[np.isfinite(f0)])
+    f0_max = np.max(f0[np.isfinite(f0)])
+    f0_min = np.min(f0[np.isfinite(f0)])
+    f0_mean = np.mean(f0[np.isfinite(f0)])
 
     return -1
 
@@ -93,22 +142,22 @@ def load_files():
     audio_files = librosa.util.find_files(file_path, ext="wav")
     print(f"found {len(audio_files)} files")
 
-    brush_durs = []
-    food_durs = []
-    iso_durs = []
+    brush_durations = []
+    food_durations = []
+    iso_durations = []
     for file in audio_files:
         print(f"working on file: {file}")
         samples, sample_rate = load(file)
         duration = get_duration(y=samples, sr=sample_rate)
         match Path(file).parts[-1][0]:
             case "B":
-                brush_durs.append(duration)
+                brush_durations.append(duration)
             case "F":
-                food_durs.append(duration)
+                food_durations.append(duration)
             case "I":
-                iso_durs.append(duration)
+                iso_durations.append(duration)
 
-    for d_list in [brush_durs, food_durs, iso_durs]:
+    for d_list in [brush_durations, food_durations, iso_durations]:
         print(sum(d_list) / len(d_list))
 
 
@@ -120,48 +169,6 @@ def main():
 
     audio_file = Path(sys.argv[1])
     gen_plotly_plots(audio_file)
-    samples, sample_rate = librosa.load(audio_file)
-    duration = librosa.get_duration(y=samples, sr=sample_rate)
-    f_min = librosa.note_to_hz("A1")
-    f_max = librosa.note_to_hz("B7")
-
-    fig, ax = plt.subplots(nrows=3, sharex=True)
-    librosa.display.waveshow(samples, sr=sample_rate, ax=ax[0], x_axis="time")  # type: ignore
-    onsets = librosa.onset.onset_detect(
-        y=samples, sr=sample_rate, units="time", backtrack=True
-    )
-    for onset in onsets:
-        ax[0].vlines(x=onset, ymin=-0.25, ymax=0.25, color="red")  # type: ignore
-
-    mel_spec = librosa.feature.melspectrogram(
-        y=samples, sr=sample_rate, n_mels=256, n_fft=2048, fmin=f_min, fmax=f_max
-    )
-    mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)  # type: ignore
-    img = librosa.display.specshow(
-        mel_spec_db, x_axis="time", y_axis="mel", sr=sample_rate, fmax=f_max, ax=ax[1]  # type: ignore
-    )
-
-    img2 = librosa.display.specshow(
-        mel_spec_db, x_axis="time", y_axis="mel", sr=sample_rate, fmax=f_max, ax=ax[2]  # type: ignore
-    )
-    f0, voiced_flag, voiced_probs = librosa.pyin(samples, fmin=f_min, fmax=f_max)
-    times = librosa.times_like(f0)
-    cent = librosa.feature.spectral_centroid(y=samples, sr=sample_rate)
-    times2 = librosa.times_like(cent)
-
-    ax[2].plot(times, f0, label="f0", color="cyan", linewidth=2)  # type: ignore
-    ax[2].plot(times2, cent.T, color="green", linewidth=2)  # type: ignore
-
-    plt.colorbar(img, format="%+2.0f dB", ax=ax[:])  # type: ignore
-    plt.xticks(np.linspace(0, duration, mel_spec_db.shape[1]))
-    plt.show()
-
-    print(f"duration: {librosa.get_duration(y=samples, sr=sample_rate):.04f} seconds")
-    print(f"Sample Rate: {sample_rate} Hz")
-    print(f"Spec Shape: {mel_spec_db.shape}")
-    print(f"f0: {f0}")
-    print(f"voiced_flag: {voiced_flag}")
-    print(f"voiced_probs: {voiced_probs}")
 
     # load_files()
 
