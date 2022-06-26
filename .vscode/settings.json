@@ -12,6 +12,7 @@
     "pyin",
     "rowspan",
     "sgram",
+    "showlegend",
     "specshow",
     "stft"
   ]
